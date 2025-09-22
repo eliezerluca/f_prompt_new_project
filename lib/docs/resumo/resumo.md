@@ -50,12 +50,254 @@ dependencies:
   result_dart: ^1.1.0 # Result Pattern
   freezed_annotation: ^2.4.1 # Geração de código
   lucid_validation: ^3.0.0 # Validação
+  dio: ^5.4.0 # Cliente HTTP
+  shared_preferences: ^2.2.0 # Storage local
 
 dev_dependencies:
   build_runner: ^2.4.8
   freezed: ^2.4.7
   json_serializable: ^6.7.1
+  mocktail: ^1.0.0 # Para testes com mocks
 ```
+
+---
+
+## 🚀 Criação de Projeto do Zero
+
+### **Passo 0: Setup Inicial do Projeto**
+
+#### 0.1 Criar Projeto Flutter
+
+```bash
+flutter create nome_do_projeto
+cd nome_do_projeto
+```
+
+#### 0.2 Adicionar Dependências
+
+- Edite o `pubspec.yaml` com as dependências listadas acima
+- Execute: `flutter pub get`
+
+#### 0.3 Criar Estrutura de Pastas
+
+```bash
+# Dentro da pasta lib/
+mkdir -p domain/entities domain/dtos domain/validators
+mkdir -p data/repositories data/services data/exceptions
+mkdir -p ui/auth/login ui/auth/logout ui/home ui/splash
+mkdir -p config
+mkdir -p utils/exceptions
+```
+
+#### 0.4 Configurar analysis_options.yaml
+
+```yaml
+# analysis_options.yaml (adicionar no root do projeto)
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+  errors:
+    invalid_annotation_target: ignore
+```
+
+#### 0.5 Configurar build.yaml
+
+```yaml
+# build.yaml (criar no root do projeto)
+targets:
+  $default:
+    builders:
+      freezed:
+        generate_for:
+          - lib/**/*.dart
+      json_serializable:
+        generate_for:
+          - lib/**/*.dart
+```
+
+#### 0.6 Configurar main.dart Base
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'config/dependencies.dart';
+
+void main() {
+  setupDependencies();  // Configura injeção de dependências
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Nome do App',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: const SplashPage(), // Começar sempre com splash
+    );
+  }
+}
+```
+
+#### 0.7 Criar Arquivos Base Obrigatórios
+
+**Client HTTP Base:**
+
+```dart
+// lib/data/services/client_http.dart
+import 'package:dio/dio.dart';
+import 'package:result_dart/result_dart.dart';
+
+class ClientHttp {
+  final Dio _dio;
+
+  ClientHttp(this._dio) {
+    _dio.options.baseUrl = 'https://sua-api.com/api';
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+  }
+
+  AsyncResult<Response> get(String path, [Map<String, dynamic>? queryParams]) async {
+    try {
+      final response = await _dio.get(path, queryParameters: queryParams);
+      return Success(response);
+    } catch (e) {
+      return Failure(Exception('Erro GET: $e'));
+    }
+  }
+
+  AsyncResult<Response> post(String path, Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post(path, data: data);
+      return Success(response);
+    } catch (e) {
+      return Failure(Exception('Erro POST: $e'));
+    }
+  }
+}
+```
+
+**Storage Local Base:**
+
+```dart
+// lib/data/services/local_storage.dart
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:result_dart/result_dart.dart';
+
+class LocalStorage {
+  AsyncResult<String> getData(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final data = prefs.getString(key);
+      if (data != null) {
+        return Success(data);
+      }
+      return Failure(Exception('Dados não encontrados para a chave: $key'));
+    } catch (e) {
+      return Failure(Exception('Erro ao buscar dados: $e'));
+    }
+  }
+
+  AsyncResult<bool> saveData(String key, String value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final result = await prefs.setString(key, value);
+      return Success(result);
+    } catch (e) {
+      return Failure(Exception('Erro ao salvar dados: $e'));
+    }
+  }
+
+  AsyncResult<bool> removeData(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final result = await prefs.remove(key);
+      return Success(result);
+    } catch (e) {
+      return Failure(Exception('Erro ao remover dados: $e'));
+    }
+  }
+}
+```
+
+**Splash Page Base:**
+
+```dart
+// lib/ui/splash/splash_page.dart
+import 'package:flutter/material.dart';
+
+class SplashPage extends StatefulWidget {
+  const SplashPage({Key? key}) : super(key: key);
+
+  @override
+  State<SplashPage> createState() => _SplashPageState();
+}
+
+class _SplashPageState extends State<SplashPage> {
+  @override
+  void initState() {
+    super.initState();
+    _navigateToHome();
+  }
+
+  _navigateToHome() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.flutter_dash, size: 100, color: Colors.blue),
+            SizedBox(height: 20),
+            Text('Nome do App', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            SizedBox(height: 20),
+            CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+#### 0.8 Comandos Finais de Setup
+
+```bash
+# Executar para gerar arquivos necessários
+flutter pub get
+flutter packages pub run build_runner build
+
+# Verificar se tudo está funcionando
+flutter analyze
+flutter test
+```
+
+#### 0.9 Checklist de Validação do Setup
+
+- [ ] Projeto Flutter criado com sucesso
+- [ ] Todas as dependências adicionadas no pubspec.yaml
+- [ ] Estrutura de pastas criada conforme padrão
+- [ ] Arquivos de configuração (analysis_options.yaml, build.yaml) criados
+- [ ] Arquivos base (ClientHttp, LocalStorage, SplashPage) implementados
+- [ ] main.dart configurado com setupDependencies()
+- [ ] `flutter analyze` executa sem erros
+- [ ] Projeto compila com `flutter run`
+
+**⚠️ IMPORTANTE:** Após o setup inicial, SEMPRE começar pelo Domain Layer ao implementar novas features!
 
 ---
 
